@@ -12,7 +12,7 @@ def getSQLArgs(string):
 	"""Take string of SQL query arguments and return list"""
 	# List arguments of SQL query
 	args = string[string.find('(')+1:string.rfind(')')]
-	#  Use csv reader to escape quotes and commas in string
+	# Use csv reader to escape quotes and commas in string
 	return list(csv.reader(args.splitlines(),
 		delimiter=',', quotechar='\''))[0]
 
@@ -81,11 +81,12 @@ class Database:
 			raise IOError
 		self.libID = self.getLibID()
 		self.playlists = []
+		self.smartplaylists = []
 		self.songlist = {} # Song id, song file path
 
 	def getLibID(self):
 		"""Retrieve library index"""
-		for line in  iter(self.sql.splitlines()):
+		for line in iter(self.sql.splitlines()):
 			if ('INSERT INTO "CorePrimarySources"' in line
 			and 'MusicLibrarySource-Library' in line):
 				args = line[line.find('(')+1:line.rfind(')')].split(',')
@@ -115,12 +116,12 @@ class Database:
 				args = getSQLArgs(line)
 				if inth(args[0]) != self.libID:
 					continue
-				self.playlists.append(Playlist(inth(args[1]),args[2], 'pos'))
+				self.playlists.append(Playlist(inth(args[1]), args[2], 'pos'))
 			elif 'INSERT INTO "CoreSmartPlaylists"' in line:
 				args = getSQLArgs(line)
 				if inth(args[0]) != self.libID:
 					continue
-				self.playlists.append(Playlist(inth(args[1]),args[2], 'pos'))
+				self.smartplaylists.append(Playlist(inth(args[1]), args[2], 'pos'))
 
 	def getPlaylistByName(self, needle):
 		"""Return ID for playlist if exists, -1 otherwise"""
@@ -128,7 +129,11 @@ class Database:
 			if pl._name == needle:
 				return pl.id
 		else:
-			return -1
+			for pl in self.smartplaylists:
+				if pl._name == needle:
+					return pl.id
+			else:
+				return -1
 
 	def fillPlaylists(self):
 		"""Fill playlists with songs"""
@@ -147,7 +152,7 @@ class Database:
 							})
 			elif 'INSERT INTO "CoreSmartPlaylistEntries"' in line:
 				args = getSQLArgs(line)
-				for pl in self.playlists:
+				for pl in self.smartplaylists:
 					if inth(args[1]) == pl.id:
 						arg = inth(args[2])
 						if arg not in self.songlist:
@@ -162,12 +167,17 @@ class Database:
 		"""Remove duplicate songs in playlists"""
 		for pl in self.playlists:
 			pl.purgeDuplicates()
+		for pl in self.smartplaylists:
+			pl.purgeDuplicates()
 
 	def sortPlaylist(self, criterion, which=-1):
 		"""Sort playlist"""
 		if criterion not in ['id','path','pos']: # Criterion valid
 			raise KeyError('Invalid sorting criterion.')
 		for pl in self.playlists:
+			if which == pl.id or which == -1:
+				pl.setSorting(criterion)
+		for pl in self.smartplaylists:
 			if which == pl.id or which == -1:
 				pl.setSorting(criterion)
 
@@ -193,6 +203,11 @@ class Database:
 			# Open playlist to write in assigned location
 			plname = os.path.join(outdir, pl._namefile + postfix + '.' + ext)
 			with open(plname, 'wt') as fout:
+				fout.write(pl.printList())
+		for pl in self.smartplaylists:
+			# Open smartplaylist to write in assigned location
+			plname = os.path.join(outdir, pl._namefile + postfix + '.' + ext)
+			with open(plname, "wt") as fout:
 				fout.write(pl.printList())
 
 
@@ -229,7 +244,7 @@ if __name__ == '__main__':
 		help='sort playlists by \'order\'. Leave out to disable sorting')
 	args = parser.parse_args()
 
- 	# Contruct database
+	# Contruct database
 	try:
 		bansheeLibrary = Database(os.path.expanduser(args.db))
 	except Exception as e:
