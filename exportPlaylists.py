@@ -7,6 +7,7 @@ import urllib
 import os
 import csv
 import argparse
+import re
 
 def getSQLArgs(string):
 	"""Take string of SQL query arguments and return list"""
@@ -87,8 +88,7 @@ class Database:
 	def getLibID(self):
 		"""Retrieve library index"""
 		for line in iter(self.sql.splitlines()):
-			if ('INSERT INTO "CorePrimarySources"' in line
-			and 'MusicLibrarySource-Library' in line):
+			if re.search('INSERT INTO "?CorePrimarySources"?.*MusicLibrarySource-Library', line):
 				args = line[line.find('(')+1:line.rfind(')')].split(',')
 				return inth(args[0])
 		# If ID not found
@@ -97,7 +97,7 @@ class Database:
 	def getSonglist(self):
 		"""Create song directory"""
 		for line in iter(self.sql.splitlines()):
-			if 'INSERT INTO "CoreTracks"' in line:
+			if re.search('INSERT INTO "?CoreTracks', line):
 				args = getSQLArgs(line)
 				if inth(args[0]) != self.libID:
 					continue
@@ -112,12 +112,12 @@ class Database:
 	def getPlaylists(self):
 		"""List all playlist IDs and names"""
 		for line in iter(self.sql.splitlines()):
-			if 'INSERT INTO "CorePlaylists"' in line:
+			if re.search('INSERT INTO "?CorePlaylists', line):
 				args = getSQLArgs(line)
 				if inth(args[0]) != self.libID:
 					continue
 				self.playlists.append(Playlist(inth(args[1]), args[2], 'pos'))
-			elif 'INSERT INTO "CoreSmartPlaylists"' in line:
+			elif re.search('INSERT INTO "?CoreSmartPlaylists', line):
 				args = getSQLArgs(line)
 				if inth(args[0]) != self.libID:
 					continue
@@ -138,7 +138,7 @@ class Database:
 	def fillPlaylists(self):
 		"""Fill playlists with songs"""
 		for line in iter(self.sql.splitlines()):
-			if 'INSERT INTO "CorePlaylistEntries"' in line:
+			if re.search('INSERT INTO "?CorePlaylistEntries', line):
 				args = getSQLArgs(line)
 				for pl in self.playlists:
 					if inth(args[1]) == pl.id:
@@ -150,7 +150,7 @@ class Database:
 							'path': self.songlist[arg],
 							'pos': inth(args[3]),
 							})
-			elif 'INSERT INTO "CoreSmartPlaylistEntries"' in line:
+			elif re.search('INSERT INTO "?CoreSmartPlaylistEntries', line):
 				args = getSQLArgs(line)
 				for pl in self.smartplaylists:
 					if inth(args[1]) == pl.id:
